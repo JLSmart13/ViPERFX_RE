@@ -67,7 +67,20 @@ jobs:
           mkdir -p module/common/files
           
           for abi in armeabi-v7a arm64-v8a x86 x86_64; do
-            cp build_output/libv4a_re_$abi.so module/common/files/libv4a_re_$abi.so
-            cp build_output/libv4aidl_re_$abi.so module/common/files/libv4aidl_re_$abi.so
+            cp build_output/libv4a_re_$abi.so module/common/files/libv4a_re.so
+            cp build_output/libv4aidl_re_$abi.so module/common/files/libv4aidl_re.so
           done
+
+      # Zip the Magisk module
+      - name: Zip Magisk Module
+        run: |
+          cd module
+          zip -r ../magisk_module.zip ./
+
+      # Upload the zipped Magisk module as an artifact
+      - name: Upload Magisk Module
+        uses: actions/upload-artifact@v3
+        with:
+          name: V4A_Magisk_Module
+          path: module
 
