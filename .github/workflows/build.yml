@@ -1,62 +1,80 @@
-name: build
+name: Build ViPER4Android
 
-on: [push, pull_request]
-
-env:
-  MIN_SDK_VERSION: 21
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
+    name: Build ViPERFX for Android
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        abi: ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
-
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build with CMake
-        run: |
-          cmake -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-${{ env.MIN_SDK_VERSION }} -DANDROID_ARM_NEON=TRUE .
-          cmake --build . -- -j$(nproc)
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - name: Setup Android NDK and Soong
+        uses: nttld/setup-ndk@v1
         with:
-          name: libv4a_re_${{ matrix.abi }}
-          path: libv4a_re.so
+          ndk-version: r26b
+          local-cache: true
+
+      - name: Configure Soong Environment
+        run: |
+          export PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+          export TARGET_ARCH_ABI="armeabi-v7a arm64-v8a x86 x86_64"
+          source build/envsetup.sh
+
+      - name: Build Libraries
+        run: |
+          for abi in armeabi-v7a arm64-v8a x86 x86_64; do
+            mkdir -p out/$abi
+            OUT_DIR=out/$abi TARGET_ARCH=$abi TARGET_ARCH_VARIANT=generic USE_SOONG=true mmma -j$(nproc) .
+            cp out/$abi/system/lib/soundfx/libv4a_re.so libv4a_re_$abi.so
+            cp out/$abi/system/lib/soundfx/libv4aidl_re.so libv4aidl_re_$abi.so
+          done
+
+      - name: Upload built libraries as artifacts
+        uses: actions/upload-artifact@v4
+        for: [armeabi-v7a, arm64-v8a, x86, x86_64]
+        with:
+          name: v4a-libraries
+          path: |
+            libv4a_re_*.so
+            libv4aidl_re_*.so
 
   package:
+    name: Package Magisk Module
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Download the compiled binaries from the 'build' workflow
-      - name: Download artifacts
+      - name: Download built libraries
         uses: actions/download-artifact@v4
+        with:
+          name: v4a-libraries
+          path: build_output
 
-      # Prepare Magisk module directory by copying the necessary ABI files
       - name: Prepare Magisk Module
         run: |
+          mkdir -p module/common/files
+          
           for abi in armeabi-v7a arm64-v8a x86 x86_64; do
-            mkdir -p module/common/files
-            cp libv4a_re_$abi/libv4a_re.so module/common/files/libv4a_re_$abi.so
+            cp build_output/libv4a_re_$abi.so module/common/files/libv4a_re_$abi.so
+            cp build_output/libv4aidl_re_$abi.so module/common/files/libv4aidl_re_$abi.so
           done
 
-      # Zip the Magisk module
-      - name: Package Magisk Module
+      - name: Zip and Upload Magisk Module
         run: |
-          cd module
-          zip -r ../magisk_module.zip ./
-
-      # Upload the zipped Magisk module as an artifact
-      - name: Upload Magisk Module
+          zip -r ViPERFX-Magisk.zip module/
         uses: actions/upload-artifact@v4
         with:
-          name: V4A_Magisk_Module
-          path: module
+          name: ViPERFX-Magisk
+          path: ViPERFX-Magisk.zip
