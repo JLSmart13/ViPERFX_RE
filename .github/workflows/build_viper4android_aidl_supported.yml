@@ -71,10 +71,3 @@ jobs:
             cp build_output/libv4aidl_re_$abi.so module/common/files/libv4aidl_re_$abi.so
           done
 
-      - name: Zip and Upload Magisk Module
-        run: |
-          zip -r ViPERFX-Magisk.zip module/
-        uses: actions/upload-artifact@v4
-        with:
-          name: ViPERFX-Magisk
-          path: ViPERFX-Magisk.zip
