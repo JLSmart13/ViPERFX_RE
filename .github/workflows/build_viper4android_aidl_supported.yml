@@ -21,25 +21,58 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Android NDK and Soong
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26b
-          local-cache: true
-
-      - name: Configure Soong Environment
+      - name: Set up dependencies
         run: |
-          export PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
-          export TARGET_ARCH_ABI="armeabi-v7a arm64-v8a x86 x86_64"
-          source build/envsetup.sh
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick \
+            lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libssl-dev libxml2 libxml2-utils \
+            lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
 
+      # Restore Soong build cache
+      - name: Restore Soong Cache
+        uses: actions/cache@v4
+        with:
+          path: out/soong
+          key: soong-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            soong-${{ runner.os }}-
+
+      # Restore NDK cache if applicable
+      - name: Restore NDK Cache
+        uses: actions/cache@v4
+        with:
+          path: prebuilts/ndk
+          key: ndk-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ndk-${{ runner.os }}-
+
+      - name: Initialize Soong
+        run: |
+          mkdir -p out/soong
+          rm -rf .soong.bootstrap out/soong/.bootstrap  # Ensure a clean environment
+          build/soong/bootstrap.bash --make-mode
+            
+      # Save Soong output to speed up future builds
+      - name: Cache Soong Output
+        uses: actions/cache@v4
+        with:
+          path: out/
+          key: out-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            out-${{ runner.os }}-
+            
       - name: Build Libraries
         run: |
           for abi in armeabi-v7a arm64-v8a x86 x86_64; do
-            mkdir -p out/$abi
-            OUT_DIR=out/$abi TARGET_ARCH=$abi TARGET_ARCH_VARIANT=generic USE_SOONG=true mmma -j$(nproc) .
-            cp out/$abi/libv4a_re.so libv4a_re_$abi.so
-            cp out/$abi/libv4aidl_re.so libv4aidl_re_$abi.so
+          mkdir -p out/$abi
+          OUT_DIR=out/$abi TARGET_ARCH=$abi TARGET_ARCH_VARIANT=generic \
+          prebuilts/build-tools/linux-x86/bin/soong_build \
+          --soong-out out/soong \
+          --out out \
+          --blueprint Android.bp
+
+          cp out/$abi/libv4a_re.so libv4a_re_$abi.so
+          cp out/$abi/libv4aidl_re.so libv4aidl_re_$abi.so
           done
 
       - name: Upload built libraries as artifacts
@@ -87,3 +120,35 @@ jobs:
           name: V4A_Magisk_Module
           path: module
 
+name: Soong Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Adjust based on your needs
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
+
+      - name: Initialize Android build environment
+        run: |
+          source build/envsetup.sh || echo "Missing build/envsetup.sh"
+          export PATH=$PWD/prebuilts/clang/host/linux-x86/clang-r450784d/bin:$PATH
+          export TARGET_BUILD_VARIANT=userdebug
+          export TARGET_PRODUCT=aosp_arm64
+          lunch $TARGET_PRODUCT-$TARGET_BUILD_VARIANT
+
+      - name: Build with Soong
+        run: |
+          make -j$(nproc) TARGET_PRODUCT=aosp_arm64 TARGET_BUILD_VARIANT=userdebug
