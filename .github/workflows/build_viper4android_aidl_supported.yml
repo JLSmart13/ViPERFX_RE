@@ -26,40 +26,14 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt-get install -y \
-           bc \
-           bison \
-           build-essential \
-           curl \
-           flex \
-           g++-multilib \
-           gcc-multilib \
-           git \
-           gnupg \
-           gperf \
-           imagemagick \
-           libncurses-dev libncurses-dev:i386 \
-           libreadline-dev \
-           zlib1g-dev zlib1g:i386 \
-           libssl-dev \
-           lzop \
-           liblz4-tool \
-           libxml2 \
-           libxml2-utils \
-           pngcrush \
-           rsync \
-           schedtool \
-           squashfs-tools \
-           xsltproc \
-           zip \
-           python3 \
-           python-is-python3 \
-           python3-pip \
-           unzip \
-           file \
-           jq \
-           cpio
+            bc bison build-essential curl flex g++-multilib gcc-multilib \
+            git gnupg gperf imagemagick libncurses-dev libncurses-dev:i386 \
+            libreadline-dev zlib1g-dev zlib1g:i386 libssl-dev lzop \
+            liblz4-tool libxml2 libxml2-utils pngcrush rsync schedtool \
+            squashfs-tools xsltproc zip python3 python-is-python3 \
+            python3-pip unzip file jq cpio
 
-      # Restore Soong build cache
+      # Restore Soong cache
       - name: Restore Soong Cache
         uses: actions/cache@v4
         with:
@@ -68,42 +42,23 @@ jobs:
           restore-keys: |
             soong-${{ runner.os }}-
 
-      # Restore NDK cache if applicable
-      - name: Restore NDK Cache
-        uses: actions/cache@v4
-        with:
-          path: prebuilts/ndk
-          key: ndk-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            ndk-${{ runner.os }}-
-
+      # Initialize Soong
       - name: Initialize Soong
         run: |
-          mkdir -p out/soong
-          rm -rf .soong.bootstrap out/soong/.bootstrap  # Ensure a clean environment
-          build/soong/bootstrap.bash --make-mode
-            
-      # Save Soong output to speed up future builds
-      - name: Cache Soong Output
-        uses: actions/cache@v4
-        with:
-          path: out/
-          key: out-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            out-${{ runner.os }}-
-            
+          rm -rf .soong.bootstrap out/soong/.bootstrap  # Clean bootstrap
+          build/soong/soong_ui.bash --make-mode --blueprint Android.bp
+
+      # Build libraries for each ABI
       - name: Build Libraries
         run: |
-          for abi in armeabi-v7a arm64-v8a x86 x86_64; do
-          mkdir -p out/$abi
-          OUT_DIR=out/$abi TARGET_ARCH=$abi TARGET_ARCH_VARIANT=generic \
-          prebuilts/build-tools/linux-x86/bin/soong_build \
-          --soong-out out/soong \
-          --out out \
-          --blueprint Android.bp
+          for abi in ${{ matrix.abi }}; do
+            mkdir -p out/$abi
+            OUT_DIR=out/$abi TARGET_ARCH=$abi TARGET_ARCH_VARIANT=generic \
+            build/soong/soong_ui.bash --make-mode v4a
 
-          cp out/$abi/libv4a_re.so libv4a_re_$abi.so
-          cp out/$abi/libv4aidl_re.so libv4aidl_re_$abi.so
+            # Copy the outputs for each ABI, renaming appropriately
+            cp out/$abi/libv4a_re.so libv4a_re_$abi.so
+            cp out/$abi/libv4aidl_re.so libv4aidl_re_$abi.so
           done
 
       - name: Upload built libraries as artifacts
@@ -138,15 +93,13 @@ jobs:
             cp build_output/libv4aidl_re_$abi.so module/common/files/
           done
 
-      # Zip the Magisk module
       - name: Zip Magisk Module
         run: |
           cd module
           zip -r ../magisk_module.zip ./
 
-      # Upload the zipped Magisk module as an artifact
       - name: Upload Magisk Module
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: V4A_Magisk_Module
-          path: module
+          path: magisk_module.zip
