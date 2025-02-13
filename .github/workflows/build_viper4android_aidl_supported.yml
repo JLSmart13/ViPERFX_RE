@@ -61,7 +61,6 @@ jobs:
            jq \
            cpio
 
-
       # Step to verify and reclone Soong and NDK directories if needed
       - name: Verify and Re-clone Soong and NDK
         run: |
@@ -87,7 +86,7 @@ jobs:
 
           # Directories to verify
           SOONG_DIR="build/soong"
-          NDK_DIR="build/ndk"
+          NDK_DIR="prebuilts/ndk"
 
           # Required files for Soong
           SOONG_REQUIRED_FILES=("soong_ui.bash" "Android.bp" "make/shell_utils.sh")
@@ -117,7 +116,6 @@ jobs:
           fi
 
           echo "Soong and NDK are ready. Proceeding with the build..."
-
 
       # Cache Soong directory to speed up builds
       - name: Cache Soong
