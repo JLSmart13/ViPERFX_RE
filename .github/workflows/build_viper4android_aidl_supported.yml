@@ -3,10 +3,10 @@ name: Build ViPER4Android
 on:
   push:
     branches:
-      - main
+      - foss
   pull_request:
     branches:
-      - main
+      - foss
 
 jobs:
   build:
