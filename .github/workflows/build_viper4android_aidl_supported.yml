@@ -13,6 +13,10 @@ jobs:
     name: Build ViPERFX for Android
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        abi: ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,13 +38,12 @@ jobs:
           for abi in armeabi-v7a arm64-v8a x86 x86_64; do
             mkdir -p out/$abi
             OUT_DIR=out/$abi TARGET_ARCH=$abi TARGET_ARCH_VARIANT=generic USE_SOONG=true mmma -j$(nproc) .
-            cp out/$abi/system/lib/soundfx/libv4a_re.so libv4a_re_$abi.so
-            cp out/$abi/system/lib/soundfx/libv4aidl_re.so libv4aidl_re_$abi.so
+            cp out/$abi/libv4a_re.so libv4a_re_$abi.so
+            cp out/$abi/libv4aidl_re.so libv4aidl_re_$abi.so
           done
 
       - name: Upload built libraries as artifacts
         uses: actions/upload-artifact@v4
-        for: [armeabi-v7a, arm64-v8a, x86, x86_64]
         with:
           name: v4a-libraries
           path: |
@@ -67,8 +70,8 @@ jobs:
           mkdir -p module/common/files
           
           for abi in armeabi-v7a arm64-v8a x86 x86_64; do
-            cp build_output/libv4a_re_$abi.so module/common/files/libv4a_re.so
-            cp build_output/libv4aidl_re_$abi.so module/common/files/libv4aidl_re.so
+            cp build_output/libv4a_re_$abi.so module/common/files/
+            cp build_output/libv4aidl_re_$abi.so module/common/files/
           done
 
       # Zip the Magisk module
