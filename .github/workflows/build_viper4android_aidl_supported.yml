@@ -119,36 +119,3 @@ jobs:
         with:
           name: V4A_Magisk_Module
           path: module
-
-name: Soong Build
-
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest  # Adjust based on your needs
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
-
-      - name: Initialize Android build environment
-        run: |
-          source build/envsetup.sh || echo "Missing build/envsetup.sh"
-          export PATH=$PWD/prebuilts/clang/host/linux-x86/clang-r450784d/bin:$PATH
-          export TARGET_BUILD_VARIANT=userdebug
-          export TARGET_PRODUCT=aosp_arm64
-          lunch $TARGET_PRODUCT-$TARGET_BUILD_VARIANT
-
-      - name: Build with Soong
-        run: |
-          make -j$(nproc) TARGET_PRODUCT=aosp_arm64 TARGET_BUILD_VARIANT=userdebug
