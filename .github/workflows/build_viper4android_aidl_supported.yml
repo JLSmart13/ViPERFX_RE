@@ -28,94 +28,38 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt-get install -y \
-           bc \
-           bison \
-           build-essential \
-           curl \
-           flex \
-           g++-multilib \
-           gcc-multilib \
-           git \
-           gnupg \
-           gperf \
-           imagemagick \
-           libncurses-dev libncurses-dev:i386 \
-           libreadline-dev \
-           zlib1g-dev zlib1g:i386 \
-           libssl-dev \
-           lzop \
-           liblz4-tool \
-           libxml2 \
-           libxml2-utils \
-           pngcrush \
-           rsync \
-           schedtool \
-           squashfs-tools \
-           xsltproc \
-           zip \
-           python3 \
-           python-is-python3 \
-           python3-pip \
-           unzip \
-           file \
-           jq \
-           cpio
-
-      # Step to verify and reclone Soong and NDK directories if needed
-      - name: Verify and Re-clone Soong and NDK
-        run: |
-          # Function to verify if required files exist in the directory
-          verify_directory() {
-              local dir_path=$1
-              local file_list=("${@:2}")
-
-              if [ ! -d "$dir_path" ]; then
-                  echo "Directory $dir_path does not exist. Cloning..."
-                  return 1
-              fi
-
-              for file in "${file_list[@]}"; do
-                  if [ ! -f "$dir_path/$file" ]; then
-                      echo "File $file missing in $dir_path. Re-cloning..."
-                      return 1
-                  fi
-              done
-
-              return 0
-          }
-
-          # Directories to verify
-          SOONG_DIR="build/soong"
-          NDK_DIR="prebuilts/ndk"
-
-          # Required files for Soong
-          SOONG_REQUIRED_FILES=("soong_ui.bash" "Android.bp" "make/shell_utils.sh")
-
-          # Required files for NDK (Modify this based on your requirements)
-          NDK_REQUIRED_FILES=("ndk-build" "build/core")
-
-          # Verify Soong directory and required files
-          verify_directory "$SOONG_DIR" "${SOONG_REQUIRED_FILES[@]}"
-          SOONG_STATUS=$?
-
-          # Verify NDK directory and required files
-          verify_directory "$NDK_DIR" "${NDK_REQUIRED_FILES[@]}"
-          NDK_STATUS=$?
-
-          # If either Soong or NDK is missing necessary files, reclone them
-          if [ $SOONG_STATUS -ne 0 ]; then
-              echo "Re-cloning Soong..."
-              rm -rf "$SOONG_DIR"
-              git clone https://android.googlesource.com/platform/build/soong.git "$SOONG_DIR"
-          fi
-
-          if [ $NDK_STATUS -ne 0 ]; then
-              echo "Re-cloning NDK..."
-              rm -rf "$NDK_DIR"
-              git clone https://android.googlesource.com/platform/ndk.git "$NDK_DIR"
-          fi
-
-          echo "Soong and NDK are ready. Proceeding with the build..."
+            bc \
+            bison \
+            build-essential \
+            curl \
+            flex \
+            g++-multilib \
+            gcc-multilib \
+            git \
+            gnupg \
+            gperf \
+            imagemagick \
+            libncurses-dev libncurses-dev:i386 \
+            libreadline-dev \
+            zlib1g-dev zlib1g:i386 \
+            libssl-dev \
+            lzop \
+            liblz4-tool \
+            libxml2 \
+            libxml2-utils \
+            pngcrush \
+            rsync \
+            schedtool \
+            squashfs-tools \
+            xsltproc \
+            zip \
+            python3 \
+            python-is-python3 \
+            python3-pip \
+            unzip \
+            file \
+            jq \
+            cpio
 
       # Cache Soong directory to speed up builds
       - name: Cache Soong
@@ -135,7 +79,18 @@ jobs:
           restore-keys: |
             ndk-${{ runner.os }}-
 
-      # Initialize Soong build system
+      # Initialize NDK (clone if missing)
+      - name: Initialize NDK
+        run: |
+          if [ ! -d "prebuilts/ndk" ]; then
+            echo "NDK directory not found, cloning it..."
+            mkdir -p prebuilts
+            git clone https://android.googlesource.com/platform/ndk.git prebuilts/ndk
+          else
+            echo "NDK directory exists."
+          fi
+
+      # Initialize Soong build system (clone if missing)
       - name: Initialize Soong
         run: |
           if [ ! -d "build/soong" ]; then
@@ -165,7 +120,7 @@ jobs:
             --out out \
             --blueprint Android.bp
 
-            # Copy the output files for each ABI, ensuring you have 8 outputs in total
+            # Copy the output files for each ABI
             cp out/$abi/libv4a_re.so libv4a_re_$abi.so
             cp out/$abi/libv4aidl_re.so libv4aidl_re_$abi.so
           done
@@ -200,7 +155,6 @@ jobs:
       - name: Prepare Magisk Module
         run: |
           mkdir -p module/common/files
-          
           for abi in armeabi-v7a arm64-v8a x86 x86_64; do
             cp build_output/libv4a_re_$abi.so module/common/files/
             cp build_output/libv4aidl_re_$abi.so module/common/files/
