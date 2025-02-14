@@ -93,20 +93,6 @@ jobs:
             echo "NDK directory exists."
           fi
 
-      # Ensure build/make/shell_utils.sh is present (required by Soong)
-      - name: Ensure shell_utils.sh is present
-        run: |
-          mkdir -p build/make
-          if [ ! -f build/make/shell_utils.sh ]; then
-            echo "Fetching shell_utils.sh from AOSP build repository (android-12.0.0_r31)..."
-            curl -sL "https://android.googlesource.com/platform/build/+/android-12.0.0_r31:make/shell_utils.sh?format=TEXT" \
-              | sed '1d' \
-              | base64 --decode > build/make/shell_utils.sh
-            chmod +x build/make/shell_utils.sh
-          else
-            echo "shell_utils.sh already exists."
-          fi
-
       # Initialize Soong build system (clone if missing)
       - name: Initialize Soong
         run: |
