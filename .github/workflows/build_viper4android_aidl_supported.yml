@@ -35,15 +35,6 @@ jobs:
             pngcrush rsync schedtool squashfs-tools xsltproc zip python3 python-is-python3 \
             python3-pip unzip file jq cpio
 
-      # Cache the AOSP Platform Build Tools repository (includes Soong)
-      - name: Cache Build Tools
-        uses: actions/cache@v4
-        with:
-          path: build
-          key: build-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            build-${{ runner.os }}-
-
       # Cache NDK to avoid re-downloading it
       - name: Cache NDK
         uses: actions/cache@v4
@@ -64,22 +55,40 @@ jobs:
             echo "NDK directory exists."
           fi
 
-      # Clone the AOSP Platform Build Tools (which includes Soong)
-      - name: Clone AOSP Platform Build Tools
+      # Restore cached built Soong binary (from Option 1)
+      - name: Restore Cached Soong Build Binary
+        id: cache_soong
+        uses: actions/cache@v4
+        with:
+          path: soong/soong_build
+          key: soong-build-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            soong-build-${{ runner.os }}-
+
+      # Build Soong and Blueprint (Option 1)
+      - name: Build Soong (Option 1)
         run: |
-          if [ ! -d "build" ]; then
-            echo "Build tools directory not found, cloning..."
-            git clone https://android.googlesource.com/platform/build build
+          if [ ! -f soong/soong_build ]; then
+            echo "soong_build binary not found, building Soong and Blueprint..."
+            if [ ! -d blueprint ]; then
+              git clone --depth=1 https://android.googlesource.com/platform/build/blueprint
+            else
+              echo "Blueprint directory exists."
+            fi
+            if [ ! -d soong ]; then
+              git clone --depth=1 https://android.googlesource.com/platform/build/soong
+            else
+              echo "Soong directory exists."
+            fi
+            echo "Building Blueprint..."
+            cd blueprint && go build .
+            echo "Building Soong..."
+            cd ../soong && go build -o soong_build .
           else
-            echo "Build tools directory exists."
+            echo "Using cached soong_build binary."
           fi
 
-      # Initialize Soong using the cloned build tools
-      - name: Initialize Soong
-        run: |
-          build/soong/soong_ui.bash --make-mode --blueprint Android.bp
-
-      # Cache Soong output to avoid rebuilding everything
+      # Cache the Soong output to avoid rebuilding everything
       - name: Cache Soong Output
         uses: actions/cache@v4
         with:
@@ -88,13 +97,13 @@ jobs:
           restore-keys: |
             out-${{ runner.os }}-
 
-      # Build Libraries for each ABI in the matrix using the restored build command
+      # Build Libraries for each ABI using the built Soong binary
       - name: Build Libraries
         run: |
           for abi in armeabi-v7a arm64-v8a x86 x86_64; do
             mkdir -p out/$abi
             OUT_DIR=out/$abi TARGET_ARCH=$abi TARGET_ARCH_VARIANT=generic \
-              build/soong/soong_build \
+              ./soong/soong_build \
               --soong-out out/soong \
               --out out \
               --blueprint Android.bp
