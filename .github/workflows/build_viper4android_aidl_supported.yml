@@ -29,51 +29,22 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
-           bc \
-           bison \
-           build-essential \
-           curl \
-           flex \
-           g++-multilib \
-           gcc-multilib \
-           git \
-           gnupg \
-           gperf \
-           imagemagick \
-           libncurses-dev \
-           libncurses-dev:i386 \
-           libreadline-dev \
-           zlib1g-dev \
-           zlib1g:i386 \
-           libssl-dev \
-           lzop \
-           liblz4-tool \
-           libxml2 \
-           libxml2-utils \
-           pngcrush \
-           rsync \
-           schedtool \
-           squashfs-tools \
-           xsltproc \
-           zip \
-           python3 \
-           python-is-python3 \
-           python3-pip \
-           unzip \
-           file \
-           jq \
-           cpio
+            bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg \
+            gperf imagemagick libncurses-dev libncurses-dev:i386 libreadline-dev \
+            zlib1g-dev zlib1g:i386 libssl-dev lzop liblz4-tool libxml2 libxml2-utils \
+            pngcrush rsync schedtool squashfs-tools xsltproc zip python3 python-is-python3 \
+            python3-pip unzip file jq cpio
 
-      # Cache Soong directory to speed up builds
-      - name: Cache Soong
+      # Cache the AOSP Platform Build Tools repository (includes Soong)
+      - name: Cache Build Tools
         uses: actions/cache@v4
         with:
-          path: build/soong
-          key: soong-${{ runner.os }}-${{ github.sha }}
+          path: build
+          key: build-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            soong-${{ runner.os }}-
+            build-${{ runner.os }}-
 
-      # Cache NDK to avoid downloading it multiple times
+      # Cache NDK to avoid re-downloading it
       - name: Cache NDK
         uses: actions/cache@v4
         with:
@@ -93,15 +64,20 @@ jobs:
             echo "NDK directory exists."
           fi
 
-      # Initialize Soong build system (clone if missing)
+      # Clone the AOSP Platform Build Tools (which includes Soong)
+      - name: Clone AOSP Platform Build Tools
+        run: |
+          if [ ! -d "build" ]; then
+            echo "Build tools directory not found, cloning..."
+            git clone https://android.googlesource.com/platform/build build
+          else
+            echo "Build tools directory exists."
+          fi
+
+      # Initialize Soong using the cloned build tools
       - name: Initialize Soong
         run: |
-          if [ ! -d "build/soong" ]; then
-            echo "Soong directory not found, cloning it..."
-            git clone https://android.googlesource.com/platform/build/soong.git build/soong
-          fi
-          rm -rf .soong.bootstrap out/soong/.bootstrap  # Ensure a clean environment
-          build/soong/soong_ui.bash --make-mode --blueprint Android.bp  # Initialize Soong build system
+          build/soong/soong_ui.bash --make-mode --blueprint Android.bp
 
       # Cache Soong output to avoid rebuilding everything
       - name: Cache Soong Output
@@ -112,16 +88,16 @@ jobs:
           restore-keys: |
             out-${{ runner.os }}-
 
-      # Build Libraries for each ABI in the matrix
+      # Build Libraries for each ABI in the matrix using the restored build command
       - name: Build Libraries
         run: |
           for abi in armeabi-v7a arm64-v8a x86 x86_64; do
             mkdir -p out/$abi
             OUT_DIR=out/$abi TARGET_ARCH=$abi TARGET_ARCH_VARIANT=generic \
-            prebuilts/build-tools/linux-x86/bin/soong_build \
-            --soong-out out/soong \
-            --out out \
-            --blueprint Android.bp
+              build/soong/soong_build \
+              --soong-out out/soong \
+              --out out \
+              --blueprint Android.bp
 
             # Copy the output files for each ABI
             cp out/$abi/libv4a_re.so libv4a_re_$abi.so
