@@ -98,11 +98,11 @@ jobs:
         run: |
           mkdir -p build/make
           if [ ! -f build/make/shell_utils.sh ]; then
-            echo "Fetching shell_utils.sh from AOSP build repository..."
-            curl -sL "https://android.googlesource.com/platform/build/+/refs/heads/master/make/shell_utils.sh?format=TEXT" \
-              | sed '1d' \
-              | base64 --decode > build/make/shell_utils.sh
+            echo "Cloning platform/build to obtain shell_utils.sh..."
+            git clone --depth=1 https://android.googlesource.com/platform/build.git build/build_temp
+            cp build/build_temp/make/shell_utils.sh build/make/shell_utils.sh
             chmod +x build/make/shell_utils.sh
+            rm -rf build/build_temp
           else
             echo "shell_utils.sh already exists."
           fi
