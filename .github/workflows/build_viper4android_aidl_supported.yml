@@ -28,38 +28,38 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt-get update
           sudo apt-get install -y \
-            bc \
-            bison \
-            build-essential \
-            curl \
-            flex \
-            g++-multilib \
-            gcc-multilib \
-            git \
-            gnupg \
-            gperf \
-            imagemagick \
-            libncurses-dev libncurses-dev:i386 \
-            libreadline-dev \
-            zlib1g-dev zlib1g:i386 \
-            libssl-dev \
-            lzop \
-            liblz4-tool \
-            libxml2 \
-            libxml2-utils \
-            pngcrush \
-            rsync \
-            schedtool \
-            squashfs-tools \
-            xsltproc \
-            zip \
-            python3 \
-            python-is-python3 \
-            python3-pip \
-            unzip \
-            file \
-            jq \
-            cpio
+           bc \
+           bison \
+           build-essential \
+           curl \
+           flex \
+           g++-multilib \
+           gcc-multilib \
+           git \
+           gnupg \
+           gperf \
+           imagemagick \
+           libncurses-dev libncurses-dev:i386 \
+           libreadline-dev \
+           zlib1g-dev zlib1g:i386 \
+           libssl-dev \
+           lzop \
+           liblz4-tool \
+           libxml2 \
+           libxml2-utils \
+           pngcrush \
+           rsync \
+           schedtool \
+           squashfs-tools \
+           xsltproc \
+           zip \
+           python3 \
+           python-is-python3 \
+           python3-pip \
+           unzip \
+           file \
+           jq \
+           cpio
 
       # Cache Soong directory to speed up builds
       - name: Cache Soong
@@ -79,7 +79,7 @@ jobs:
           restore-keys: |
             ndk-${{ runner.os }}-
 
-      # Initialize NDK (clone if missing)
+      # Initialize NDK if not present
       - name: Initialize NDK
         run: |
           if [ ! -d "prebuilts/ndk" ]; then
@@ -88,6 +88,18 @@ jobs:
             git clone https://android.googlesource.com/platform/ndk.git prebuilts/ndk
           else
             echo "NDK directory exists."
+          fi
+
+      # Ensure build/make/shell_utils.sh is present (required by Soong)
+      - name: Ensure shell_utils.sh is present
+        run: |
+          mkdir -p build/make
+          if [ ! -f build/make/shell_utils.sh ]; then
+            echo "Fetching shell_utils.sh from AOSP build repository..."
+            curl -L "https://android.googlesource.com/platform/build/+/refs/heads/master/make/shell_utils.sh?format=TEXT" | base64 --decode > build/make/shell_utils.sh
+            chmod +x build/make/shell_utils.sh
+          else
+            echo "shell_utils.sh already exists."
           fi
 
       # Initialize Soong build system (clone if missing)
