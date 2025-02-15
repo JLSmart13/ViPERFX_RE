@@ -83,11 +83,13 @@ jobs:
             echo "Building Blueprint..."
             cd blueprint
             [ -f go.work ] && rm go.work
-            go build .
+            # Build Blueprint for Linux x86_64
+            GOOS=linux GOARCH=amd64 go build .
             cd ../soong
             echo "Building Soong..."
             [ -f go.work ] && rm go.work
-            go build -o soong_build .
+            # Build the Soong binary from the main package in ./cmd/soong
+            GOOS=linux GOARCH=amd64 go build -o soong_build ./cmd/soong
             chmod +x soong_build
           else
             echo "Using cached soong_build binary."
