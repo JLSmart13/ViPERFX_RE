@@ -58,11 +58,14 @@ jobs:
           git clone --depth=1 https://android.googlesource.com/platform/build/blueprint
           git clone --depth=1 https://android.googlesource.com/platform/build/soong
           
-          # Clone external dependencies
+          # Clone external dependencies with specific tags/versions
           cd external
           git clone --depth=1 https://github.com/google/go-cmp go-cmp
-          git clone --depth=1 https://github.com/protocolbuffers/protobuf-go google.golang.org/protobuf
-          git clone --depth=1 https://github.com/golang/protobuf github.com/golang/protobuf
+          mkdir -p google.golang.org
+          cd google.golang.org
+          git clone --depth=1 --branch=v1.31.0 https://github.com/protocolbuffers/protobuf-go protobuf
+          cd ..
+          git clone --depth=1 --branch=v1.5.3 https://github.com/golang/protobuf github.com/golang/protobuf
           git clone --depth=1 https://github.com/google/starlark-go starlark-go
           cd ..
 
@@ -79,6 +82,14 @@ jobs:
           echo '        ./external/github.com/golang/protobuf' >> go.work
           echo '        ./external/starlark-go' >> go.work
           echo ')' >> go.work
+          
+          # Setup protobuf environment
+          mkdir -p external/google.golang.org/protobuf/android
+          cat > external/google.golang.org/protobuf/android/android.go << 'EOL'
+package android
+
+// Placeholder package for Android-specific protobuf functionality
+EOL
 
       - name: Build Blueprint and Soong
         run: |
@@ -109,8 +120,8 @@ jobs:
           go mod edit -replace github.com/google/go-cmp=../external/go-cmp
           
           # Fix dependencies versions
-          go get -d google.golang.org/protobuf@latest
-          go get -d github.com/golang/protobuf@latest
+          go get -d google.golang.org/protobuf@v1.31.0
+          go get -d github.com/golang/protobuf@v1.5.3
           go get -d go.starlark.net@latest
           go get -d github.com/google/go-cmp@latest
           
