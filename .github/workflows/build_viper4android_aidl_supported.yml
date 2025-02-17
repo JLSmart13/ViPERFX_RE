@@ -54,33 +54,59 @@ jobs:
       # Set up Soong build environment
       - name: Set up Soong environment
         run: |
-          mkdir -p android-build
+          # Create build directory structure
+          mkdir -p android-build/external
           cd android-build
           
-          # Clone necessary repositories
+          # Clone all necessary repositories
           git clone --depth=1 https://android.googlesource.com/platform/build/blueprint
           git clone --depth=1 https://android.googlesource.com/platform/build/soong
+          
+          # Clone external dependencies
+          cd external
+          git clone --depth=1 https://github.com/google/go-cmp go-cmp
+          git clone --depth=1 https://github.com/golang/protobuf golang-protobuf
+          git clone --depth=1 https://github.com/google/starlark-go starlark-go
+          cd ..
           
           # Set up build environment
           export GOPATH=$HOME/go
           export PATH=$PATH:$GOPATH/bin
           
-          # Build and install Blueprint
+          # Remove existing go.work files if they exist
+          find . -name "go.work" -type f -delete
+          
+          # Create new go.work file
+          cat > go.work << EOL
+go 1.21
+
+use (
+        ./blueprint
+        ./soong
+        ./external/go-cmp
+        ./external/golang-protobuf
+        ./external/starlark-go
+)
+EOL
+          
+          # Build Blueprint
           cd blueprint
+          go mod tidy
           go build -o blueprint
           chmod +x blueprint
           cd ..
           
           # Build Soong
           cd soong
+          go mod tidy
           go build -o soong_build ./cmd/soong
           chmod +x soong_build
           cd ..
           
           # Create symbolic links
           mkdir -p out
-          ln -s $(pwd)/blueprint/blueprint out/
-          ln -s $(pwd)/soong/soong_build out/
+          ln -sf $(pwd)/blueprint/blueprint out/
+          ln -sf $(pwd)/soong/soong_build out/
 
       # Cache the build output
       - name: Cache build output
