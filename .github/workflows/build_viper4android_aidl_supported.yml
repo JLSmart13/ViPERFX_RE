@@ -26,98 +26,86 @@ jobs:
       - name: Set up dependencies
         run: |
           export DEBIAN_FRONTEND=noninteractive
-          sudo dpkg --add-architecture i386
           sudo apt-get update -qq
           sudo apt-get install -y -qq \
             bc bison build-essential curl flex g++-multilib gcc-multilib git gnupg \
-            gperf imagemagick libncurses-dev libncurses-dev:i386 libreadline-dev \
-            zlib1g-dev zlib1g:i386 libssl-dev lzop liblz4-tool libxml2 libxml2-utils \
+            gperf imagemagick libncurses-dev libreadline-dev \
+            zlib1g-dev libssl-dev lzop liblz4-tool libxml2 libxml2-utils \
             pngcrush rsync schedtool squashfs-tools xsltproc zip python3 python-is-python3 \
-            python3-pip unzip file jq cpio
+            python3-pip unzip file jq cpio golang-go
 
-      # Cache NDK to avoid re-downloading it
-      - name: Cache NDK
+      # Set up Go
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      # Cache Go modules
+      - name: Cache Go modules
         uses: actions/cache@v4
         with:
-          path: prebuilts/ndk
-          key: ndk-${{ runner.os }}-${{ github.sha }}
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ndk-${{ runner.os }}-
+            ${{ runner.os }}-go-
 
-      # Initialize NDK if not present
-      - name: Initialize NDK
+      # Set up Soong build environment
+      - name: Set up Soong environment
         run: |
-          if [ ! -d "prebuilts/ndk" ]; then
-            echo "NDK directory not found, cloning it..."
-            mkdir -p prebuilts
-            git clone https://android.googlesource.com/platform/ndk.git prebuilts/ndk
-          else
-            echo "NDK directory exists."
-          fi
+          mkdir -p android-build
+          cd android-build
+          
+          # Clone necessary repositories
+          git clone --depth=1 https://android.googlesource.com/platform/build/blueprint
+          git clone --depth=1 https://android.googlesource.com/platform/build/soong
+          
+          # Set up build environment
+          export GOPATH=$HOME/go
+          export PATH=$PATH:$GOPATH/bin
+          
+          # Build and install Blueprint
+          cd blueprint
+          go build -o blueprint
+          chmod +x blueprint
+          cd ..
+          
+          # Build Soong
+          cd soong
+          go build -o soong_build ./cmd/soong
+          chmod +x soong_build
+          cd ..
+          
+          # Create symbolic links
+          mkdir -p out
+          ln -s $(pwd)/blueprint/blueprint out/
+          ln -s $(pwd)/soong/soong_build out/
 
-      # Restore cached built Soong binary (from Option 1)
-      - name: Restore Cached Soong Build Binary
-        id: cache_soong
+      # Cache the build output
+      - name: Cache build output
         uses: actions/cache@v4
         with:
-          path: soong/soong_build
-          key: soong-build-${{ runner.os }}-${{ github.sha }}
+          path: android-build/out
+          key: build-output-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            soong-build-${{ runner.os }}-
+            build-output-${{ runner.os }}-
 
-      # Build Soong and Blueprint (Option 1)
-      - name: Build Soong (Option 1)
-        run: |
-          if [ ! -f soong/soong_build ]; then
-            echo "soong_build binary not found, building Soong and Blueprint..."
-            if [ ! -d blueprint ]; then
-              git clone --depth=1 https://android.googlesource.com/platform/build/blueprint
-            else
-              echo "Blueprint directory exists."
-            fi
-            if [ ! -d soong ]; then
-              git clone --depth=1 https://android.googlesource.com/platform/build/soong
-            else
-              echo "Soong directory exists."
-            fi
-            echo "Building Blueprint..."
-            cd blueprint
-            [ -f go.work ] && rm go.work
-            # Build Blueprint for Linux x86_64
-            GOOS=linux GOARCH=amd64 go build .
-            cd ../soong
-            echo "Building Soong..."
-            [ -f go.work ] && rm go.work
-            # Build the Soong binary from the main package in ./cmd/soong
-            GOOS=linux GOARCH=amd64 go build -o soong_build ./cmd/soong
-            chmod +x soong_build
-          else
-            echo "Using cached soong_build binary."
-          fi
-
-      # Cache the Soong output to avoid rebuilding everything
-      - name: Cache Soong Output
-        uses: actions/cache@v4
-        with:
-          path: out/
-          key: out-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            out-${{ runner.os }}-
-
-      # Build Libraries for each ABI using the built Soong binary
+      # Build Libraries
       - name: Build Libraries
         run: |
+          cd android-build
           for abi in armeabi-v7a arm64-v8a x86 x86_64; do
             mkdir -p out/$abi
             OUT_DIR=out/$abi TARGET_ARCH=$abi TARGET_ARCH_VARIANT=generic \
               ./soong/soong_build \
               --soong-out out/soong \
               --out out \
-              --blueprint Android.bp
+              --blueprint ../Android.bp
 
             # Copy the output files for each ABI
-            cp out/$abi/libv4a_re.so libv4a_re_$abi.so
-            cp out/$abi/libv4aidl_re.so libv4aidl_re_$abi.so
+            cp out/$abi/libv4a_re.so ../libv4a_re_$abi.so
+            cp out/$abi/libv4aidl_re.so ../libv4aidl_re_$abi.so
           done
 
       # Upload the built libraries as artifacts
