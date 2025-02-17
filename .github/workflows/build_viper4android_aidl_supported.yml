@@ -75,7 +75,8 @@ jobs:
           echo '        ./blueprint' >> go.work
           echo '        ./soong' >> go.work
           echo '        ./external/go-cmp' >> go.work
-          echo '        ./external/golang-protobuf' >> go.work
+          echo '        ./external/google.golang.org/protobuf' >> go.work
+          echo '        ./external/github.com/golang/protobuf' >> go.work
           echo '        ./external/starlark-go' >> go.work
           echo ')' >> go.work
 
