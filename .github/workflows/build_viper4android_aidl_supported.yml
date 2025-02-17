@@ -9,21 +9,11 @@ on:
       - foss
 
 jobs:
-  build:
-    name: Build ViPERFX for Android
+  setup-dependencies:
+    name: Setup Dependencies
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        abi: ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
-
     steps:
-      # Checkout the repository
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # Install necessary dependencies
-      - name: Set up dependencies
+      - name: Install system dependencies
         run: |
           export DEBIAN_FRONTEND=noninteractive
           sudo apt-get update -qq
@@ -34,13 +24,11 @@ jobs:
             pngcrush rsync schedtool squashfs-tools xsltproc zip python3 python-is-python3 \
             python3-pip unzip file jq cpio golang-go
 
-      # Set up Go
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.23'
 
-      # Cache Go modules
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
@@ -51,14 +39,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go-
 
-      # Set up Soong build environment
-      - name: Set up Soong environment
+  setup-soong:
+    name: Setup Soong
+    needs: setup-dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Clone repositories
         run: |
-          # Create build directory structure
           mkdir -p android-build/external
           cd android-build
           
-          # Clone all necessary repositories
+          # Clone main repos
           git clone --depth=1 https://android.googlesource.com/platform/build/blueprint
           git clone --depth=1 https://android.googlesource.com/platform/build/soong
           
@@ -68,16 +64,11 @@ jobs:
           git clone --depth=1 https://github.com/golang/protobuf golang-protobuf
           git clone --depth=1 https://github.com/google/starlark-go starlark-go
           cd ..
-          
-          # Set up build environment
-          export GOPATH=$HOME/go
-          export PATH=$PATH:$GOPATH/bin
-          
-          # Remove existing go.work files if they exist
-          find . -name "go.work" -type f -delete
-          
-          # Create new go.work file
-          echo 'go 1.21' > go.work
+
+      - name: Setup Go workspace
+        run: |
+          cd android-build
+          echo 'go 1.23' > go.work
           echo '' >> go.work
           echo 'use (' >> go.work
           echo '        ./blueprint' >> go.work
@@ -86,6 +77,12 @@ jobs:
           echo '        ./external/golang-protobuf' >> go.work
           echo '        ./external/starlark-go' >> go.work
           echo ')' >> go.work
+
+      - name: Build Blueprint and Soong
+        run: |
+          cd android-build
+          export GOPATH=$HOME/go
+          export PATH=$PATH:$GOPATH/bin
           
           # Build Blueprint
           cd blueprint
@@ -106,14 +103,33 @@ jobs:
           ln -sf $(pwd)/blueprint/blueprint out/
           ln -sf $(pwd)/soong/soong_build out/
 
-      # Cache the build output
-      - name: Cache build output
+      - name: Cache Soong build
         uses: actions/cache@v4
         with:
-          path: android-build/out
-          key: build-output-${{ runner.os }}-${{ github.sha }}
+          path: android-build
+          key: soong-build-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
-            build-output-${{ runner.os }}-
+            soong-build-${{ runner.os }}-
+
+  build:
+    name: Build ViPERFX for Android
+    needs: setup-soong
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: ['armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Restore Soong build
+        uses: actions/cache@v4
+        with:
+          path: android-build
+          key: soong-build-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            soong-build-${{ runner.os }}-
 
       # Build Libraries
       - name: Build Libraries
@@ -132,7 +148,6 @@ jobs:
             cp out/$abi/libv4aidl_re.so ../libv4aidl_re_$abi.so
           done
 
-      # Upload the built libraries as artifacts
       - name: Upload built libraries as artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -147,18 +162,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Download the built libraries
       - name: Download built libraries
         uses: actions/download-artifact@v4
         with:
           name: v4a-libraries
           path: build_output
 
-      # Prepare the Magisk Module
       - name: Prepare Magisk Module
         run: |
           mkdir -p module/common/files
@@ -167,13 +179,11 @@ jobs:
             cp build_output/libv4aidl_re_$abi.so module/common/files/
           done
 
-      # Zip the Magisk module
       - name: Zip Magisk Module
         run: |
           cd module
           zip -r ../magisk_module.zip ./
 
-      # Upload the zipped Magisk module as an artifact
       - name: Upload Magisk Module
         uses: actions/upload-artifact@v3
         with:
