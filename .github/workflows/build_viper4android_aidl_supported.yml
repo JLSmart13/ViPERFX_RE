@@ -61,7 +61,8 @@ jobs:
           # Clone external dependencies
           cd external
           git clone --depth=1 https://github.com/google/go-cmp go-cmp
-          git clone --depth=1 https://github.com/golang/protobuf golang-protobuf
+          git clone --depth=1 https://github.com/protocolbuffers/protobuf-go google.golang.org/protobuf
+          git clone --depth=1 https://github.com/golang/protobuf github.com/golang/protobuf
           git clone --depth=1 https://github.com/google/starlark-go starlark-go
           cd ..
 
@@ -101,8 +102,8 @@ jobs:
           
           # Add required dependencies
           go mod edit -replace github.com/google/blueprint=../blueprint
-          go mod edit -replace google.golang.org/protobuf=../external/golang-protobuf
-          go mod edit -replace github.com/golang/protobuf=../external/golang-protobuf
+          go mod edit -replace google.golang.org/protobuf=../external/google.golang.org/protobuf
+          go mod edit -replace github.com/golang/protobuf=../external/github.com/golang/protobuf
           go mod edit -replace go.starlark.net=../external/starlark-go
           go mod edit -replace github.com/google/go-cmp=../external/go-cmp
           
