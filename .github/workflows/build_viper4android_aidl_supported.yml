@@ -77,8 +77,7 @@ jobs:
           find . -name "go.work" -type f -delete
           
           # Create new go.work file
-          cat > go.work << EOL
-go 1.21
+          echo 'go 1.21
 
 use (
         ./blueprint
@@ -86,8 +85,7 @@ use (
         ./external/go-cmp
         ./external/golang-protobuf
         ./external/starlark-go
-)
-EOL
+)' > go.work
           
           # Build Blueprint
           cd blueprint
