@@ -77,15 +77,15 @@ jobs:
           find . -name "go.work" -type f -delete
           
           # Create new go.work file
-          echo 'go 1.21
-
-use (
-        ./blueprint
-        ./soong
-        ./external/go-cmp
-        ./external/golang-protobuf
-        ./external/starlark-go
-)' > go.work
+          echo 'go 1.21' > go.work
+          echo '' >> go.work
+          echo 'use (' >> go.work
+          echo '        ./blueprint' >> go.work
+          echo '        ./soong' >> go.work
+          echo '        ./external/go-cmp' >> go.work
+          echo '        ./external/golang-protobuf' >> go.work
+          echo '        ./external/starlark-go' >> go.work
+          echo ')' >> go.work
           
           # Build Blueprint
           cd blueprint
