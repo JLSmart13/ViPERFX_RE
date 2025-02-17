@@ -84,15 +84,34 @@ jobs:
           export GOPATH=$HOME/go
           export PATH=$PATH:$GOPATH/bin
           
-          # Build Blueprint
+          # Initialize and build Blueprint
           cd blueprint
+          rm -f go.mod go.sum
+          go mod init github.com/google/blueprint
+          go mod edit -replace github.com/google/blueprint=./
           go mod tidy
           go build -o blueprint
           chmod +x blueprint
           cd ..
           
-          # Build Soong
+          # Initialize and build Soong
           cd soong
+          rm -f go.mod go.sum
+          go mod init android/soong
+          
+          # Add required dependencies
+          go mod edit -replace github.com/google/blueprint=../blueprint
+          go mod edit -replace google.golang.org/protobuf=../external/golang-protobuf
+          go mod edit -replace github.com/golang/protobuf=../external/golang-protobuf
+          go mod edit -replace go.starlark.net=../external/starlark-go
+          go mod edit -replace github.com/google/go-cmp=../external/go-cmp
+          
+          # Fix dependencies versions
+          go get -d google.golang.org/protobuf@latest
+          go get -d github.com/golang/protobuf@latest
+          go get -d go.starlark.net@latest
+          go get -d github.com/google/go-cmp@latest
+          
           go mod tidy
           go build -o soong_build ./cmd/soong
           chmod +x soong_build
@@ -102,6 +121,9 @@ jobs:
           mkdir -p out
           ln -sf $(pwd)/blueprint/blueprint out/
           ln -sf $(pwd)/soong/soong_build out/
+          
+          # Verify builds
+          ls -la blueprint/blueprint soong/soong_build
 
       - name: Cache Soong build
         uses: actions/cache@v4
